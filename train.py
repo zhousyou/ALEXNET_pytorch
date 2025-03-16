@@ -9,7 +9,9 @@ import torch.nn as nn
 import torch.optim as optim
 
 #选择设备
-device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+# device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
 
 #设置超参数
 batch_size = 128
@@ -21,10 +23,10 @@ data_root = 'data/dataset.txt'
 img_dir = 'data/image/train'
 
 #数据预处理
-transform = transforms.Compose(
+transform = transforms.Compose([
     transforms.ToTensor(),
     transforms.Resize((224,224))
-)
+])
 
 #加载数据集
 dataset = CustomDataset(img_dir, data_root, transform)
@@ -44,14 +46,14 @@ train_loader = DataLoader(
     train_dataset,
     batch_size,
     shuffle=True,
-    num_workers=2
+    num_workers=0
 )
 
 val_loader = DataLoader(
     val_dataset,
     batch_size,
     shuffle=False,
-    num_workers=2
+    num_workers=0
 )
 
 #定义模型
@@ -84,6 +86,18 @@ def train():
 
             running_loss += loss.item() * image.size(0)
 
+        #验证
+        epoch_loss = running_loss/len(train_loader.dataset)
+        val_loss, val_acc = validation()
+        
+        print(f'Epoch [{e+1}/{epoch}]')
+        print(f'Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
+        # 保存最佳模型
+        if val_acc > best_acc:
+            best_acc = val_acc
+            torch.save(model.state_dict(), 'best_model.pth')
+
+
 #验证的函数
 def validation():
     model.eval()
@@ -98,8 +112,16 @@ def validation():
 
             outputs = model(image)
             loss = criterion(outputs, label)
+            predicted = torch.argmax(outputs).item()
+            total += label.size(0)
+            if predicted==label:
+                correct += 1
+            running_loss += loss.item()*image.size(0)
+        val_loss = running_loss/len(val_loader.dataset)
+        val_acc = correct*100/total
+        return val_loss, val_acc
 
 
-
-
+if __name__=="__main__":
+    train()
 

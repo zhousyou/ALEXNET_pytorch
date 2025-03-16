@@ -25,7 +25,8 @@ class CustomDataset(Dataset):
     def __getitem__(self, index):
         img_name = self.img_names[index]
         img_path = os.path.join(self.img_dir, img_name)
-        img = cv2.imread(img_path, cv2.COLOR_BGR2RGB)
+        img = cv2.imread(img_path)
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = self.transform(img)
 
         label = self.labels[index]
