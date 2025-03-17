@@ -1,12 +1,14 @@
 import torch
 import torch.backends
-import torch.backends.mps
+# import torch.backends.mps
 from torchvision import transforms,datasets
 from create_data import CustomDataset
 from torch.utils.data import random_split,DataLoader
 from model.Alexnet import Alexnet
 import torch.nn as nn
 import torch.optim as optim
+from tqdm import tqdm
+import time
 
 #选择设备
 # device = torch.device('mps' if torch.backends.mps.is_available() else 'cpu')
@@ -46,14 +48,14 @@ train_loader = DataLoader(
     train_dataset,
     batch_size,
     shuffle=True,
-    num_workers=0
+    num_workers=2
 )
 
 val_loader = DataLoader(
     val_dataset,
     batch_size,
     shuffle=False,
-    num_workers=0
+    num_workers=2
 )
 
 #定义模型
@@ -93,8 +95,10 @@ def train():
     for e in range(epoch):
         model.train()
         running_loss = 0.0
+        progress_bar = tqdm(train_loader, desc=f"Epoch {e}")
+        start_time = time.time()
 
-        for image, label in train_loader:
+        for image, label in progress_bar:
             image = image.to(device)
             label = label.to(device)
 
@@ -108,11 +112,17 @@ def train():
             optimizer.step()
 
             running_loss += loss.item() * image.size(0)
+            # print(running_loss)
 
         #验证
         epoch_loss = running_loss/len(train_loader.dataset)
         # val_loss, val_acc = validation()
         
+        progress_bar.set_postfix({
+            "LOSS": f"{epoch_loss:.4f}",
+            "Time": time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+        })
+        progress_bar.refresh()  # 强制刷新进度条
         print(f'Epoch [{e+1}/{epoch}], LOSS: {epoch_loss: .4f}')
         # print(f'Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
         # 保存最佳模型

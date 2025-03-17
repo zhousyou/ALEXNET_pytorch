@@ -1,6 +1,6 @@
 import  torch
 import torch.nn as nn
-from torchsummary import summary
+# from torchsummary import summary
 import cv2
 from torch.utils.data import DataLoader
 from torchvision import transforms
