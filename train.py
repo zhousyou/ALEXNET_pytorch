@@ -7,6 +7,7 @@ from torch.utils.data import random_split,DataLoader
 from model.Alexnet import Alexnet
 import torch.nn as nn
 import torch.optim as optim
+from torch.optim.lr_scheduler import ReduceLROnPlateau
 from tqdm import tqdm
 import time
 
@@ -65,6 +66,13 @@ model = model.to(device)
 #定义损失函数和优化器
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(params=model.parameters(), lr=lr)
+scheduler = ReduceLROnPlateau(
+    optimizer=optimizer,
+    mode = 'max',
+    factor=0.5,
+    patience=3,
+    verbose=True
+)
 
 def test_train():
     model.train()
@@ -85,17 +93,13 @@ def test_train():
     # img, label = train_dataset[0]
     # print(img.shape)
     # print(label)
-
-        
-
-
 #定义训练的函数
 def train():
     best_acc = 0.0
     for e in range(epoch):
         model.train()
         running_loss = 0.0
-        progress_bar = tqdm(train_loader, desc=f"Epoch {e}")
+        progress_bar = tqdm(train_loader, desc=f"Epoch {e+1}")
         start_time = time.time()
 
         for image, label in progress_bar:
@@ -113,22 +117,23 @@ def train():
 
             running_loss += loss.item() * image.size(0)
             # print(running_loss)
+            progress_bar.set_postfix({
+                "LOSS": f"{running_loss/len(train_loader.dataset):.4f}",
+                "Time": time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
+            })
+            progress_bar.refresh()  # 强制刷新进度条
 
         #验证
         epoch_loss = running_loss/len(train_loader.dataset)
-        # val_loss, val_acc = validation()
-        
-        progress_bar.set_postfix({
-            "LOSS": f"{epoch_loss:.4f}",
-            "Time": time.strftime("%H:%M:%S", time.gmtime(time.time() - start_time))
-        })
-        progress_bar.refresh()  # 强制刷新进度条
-        print(f'Epoch [{e+1}/{epoch}], LOSS: {epoch_loss: .4f}')
-        # print(f'Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
+        val_loss, val_acc = validation()
+        scheduler.step(val_acc)
+
+        # print(f'Epoch [{e+1}/{epoch}], LOSS: {epoch_loss: .4f}')
+        print(f'Epoch [{e+1}/{epoch}]: Train Loss: {epoch_loss:.4f} | Val Loss: {val_loss:.4f} | Val Acc: {val_acc:.2f}%')
         # 保存最佳模型
-        # if val_acc > best_acc:
-        #     best_acc = val_acc
-        #     torch.save(model.state_dict(), 'best_model.pth')
+        if val_acc > best_acc:
+            best_acc = val_acc
+            torch.save(model.state_dict(), 'best_model.pth')
 
 
 #验证的函数
@@ -144,17 +149,20 @@ def validation():
             label = label.to(device)
 
             outputs = model(image)
+            # print(outputs.shape)
             loss = criterion(outputs, label)
-            _, predicted = torch.argmax(outputs,1).item()  #torch.max()返回两个值：max_values, max_indexes;outputs.shape:(128,2);predicted.shpae:128
+            predicted = torch.argmax(outputs,1)  #torch.max()返回两个值：max_values, max_indexes;outputs.shape:(128,2);predicted.shpae:128
+            # print(predicted.shape)
             total += label.size(0)   #label.shape:128
             correct += (label==predicted).sum().item()
             running_loss += loss.item()*image.size(0)
-        val_loss = running_loss/len(val_loader.dataset)
-        val_acc = correct*100/total
-        return val_loss, val_acc
+    val_loss = running_loss/len(val_loader.dataset)
+    val_acc = correct*100/total
+    return val_loss, val_acc
 
 
 if __name__=="__main__":
     # test_train()
     # print(train_loader[0])
     train()
+    # validation()
